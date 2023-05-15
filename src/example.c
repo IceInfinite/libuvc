@@ -20,6 +20,8 @@ int main(int argc, char **argv) {
   sdlRect.y = 0;
   sdlRect.w = screen_w;
   sdlRect.h = screen_h;
+  const uint8_t YUY2Str[4] = {'Y', 'U', 'Y', '2'};
+  const uint8_t NV12Str[4] = {'N', 'V', '1', '2'};
 
   SDL_Init(SDL_INIT_VIDEO);
   // Create sdl window
@@ -79,11 +81,23 @@ int main(int argc, char **argv) {
         case UVC_VS_FORMAT_FRAME_BASED:
           frame_format = UVC_FRAME_FORMAT_H264;
           break;
+        case UVC_VS_FORMAT_UNCOMPRESSED:
+          if (memcmp(format_desc->fourccFormat, YUY2Str, sizeof(YUY2Str)) ==
+              0) {
+            frame_format = UVC_FRAME_FORMAT_YUYV;
+            pixformat = SDL_PIXELFORMAT_YUY2;
+          } else if (memcmp(format_desc->fourccFormat, NV12Str,
+                            sizeof(NV12Str)) == 0) {
+            frame_format = UVC_FRAME_FORMAT_NV12;
+            pixformat = SDL_PIXELFORMAT_NV12;
+          }
+          break;
         default:
-          frame_format = UVC_FRAME_FORMAT_NV12;
-          pixformat = SDL_PIXELFORMAT_NV12;
+          frame_format = UVC_FRAME_FORMAT_UNKNOWN;
           break;
       }
+      printf("Descriptor Subtype=%d, frame format=%d\n",
+             format_desc->bDescriptorSubtype, frame_format);
 
       if (frame_desc) {
         width = frame_desc->wWidth;
@@ -189,29 +203,31 @@ int main(int argc, char **argv) {
               }
 
               // printf(
-              //     "uvc get frame! frame_format = %d, width = %d, height = %d,
-              //     " "length = %lu, sequence=%d\n", frame->frame_format,
-              //     frame->width, frame->height, frame->data_bytes,
-              //     frame->sequence);
+              //     "uvc get frame! frame_format = %d, width = %d, height = %d, "
+              //     "length = % lu, sequence = % d\n ",
+              //     frame->frame_format, frame->width, frame->height,
+              //     frame->data_bytes, frame->sequence);
               switch (frame->frame_format) {
                 case UVC_FRAME_FORMAT_H264:
                   break;
                 case UVC_COLOR_FORMAT_MJPEG:
                   break;
                 case UVC_COLOR_FORMAT_YUYV:
+                  SDL_UpdateTexture(sdlTexture, NULL, frame->data,
+                                    frame->width * 2);
                   break;
                 case UVC_COLOR_FORMAT_NV12:
                   SDL_UpdateNVTexture(
                       sdlTexture, NULL, frame->data, frame->width,
                       frame->data + (frame->height * frame->width),
                       frame->width);
-                  SDL_RenderClear(sdlRenderer);
-                  SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, &sdlRect);
-                  SDL_RenderPresent(sdlRenderer);
                   break;
                 default:
                   break;
               }
+              SDL_RenderClear(sdlRenderer);
+              SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, &sdlRect);
+              SDL_RenderPresent(sdlRenderer);
             }
 
             /* End the stream. Blocks until last callback is serviced */
