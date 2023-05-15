@@ -107,6 +107,8 @@ uvc_error_t uvc_init(uvc_context_t **pctx, struct libusb_context *usb_ctx) {
 
   if (usb_ctx == NULL) {
     ret = libusb_init(&ctx->usb_ctx);
+    // libusb_set_option(ctx->usb_ctx, LIBUSB_OPTION_LOG_LEVEL, 4);
+    // libusb_set_option(ctx->usb_ctx, LIBUSB_OPTION_USE_USBDK);
     ctx->own_usb_ctx = 1;
     if (ret != UVC_SUCCESS) {
       free(ctx);

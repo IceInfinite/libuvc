@@ -8,7 +8,7 @@ target JPEG::JPEG (this is different from shipped one with CMake)
 #]==============================================]
 
 # TODO Append parts for Version compasion and REQUIRED support
-if (MSVC OR MINGW)
+if (MSVC)
   return()
 endif()
 

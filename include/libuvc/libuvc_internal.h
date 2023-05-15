@@ -61,6 +61,10 @@
 #define UVC_ENTER() fprintf(stderr, "[%s:%d] begin %s\n", basename(__FILE__), __LINE__, __FUNCTION__)
 #define UVC_EXIT(code) fprintf(stderr, "[%s:%d] end %s (%d)\n", basename(__FILE__), __LINE__, __FUNCTION__, code)
 #define UVC_EXIT_VOID() fprintf(stderr, "[%s:%d] end %s\n", basename(__FILE__), __LINE__, __FUNCTION__)
+// #define UVC_DEBUG(format, ...) fprintf(stderr, "[%s:%d/%s] " format "\n", __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
+// #define UVC_ENTER() fprintf(stderr, "[%s:%d] begin %s\n", __FILE__, __LINE__, __FUNCTION__)
+// #define UVC_EXIT(code) fprintf(stderr, "[%s:%d] end %s (%d)\n", __FILE__, __LINE__, __FUNCTION__, code)
+// #define UVC_EXIT_VOID() fprintf(stderr, "[%s:%d] end %s\n", __FILE__, __LINE__, __FUNCTION__)
 #endif
 #else
 #define UVC_DEBUG(format, ...)

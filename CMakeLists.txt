@@ -87,6 +87,7 @@ if(BUILD_UVC_SHARED)
 endif()
 
 if(BUILD_UVC_STATIC)
+  # set(LibUVC_STATIC TRUE)
   add_library(uvc_static STATIC ${SOURCES})
   set_target_properties(uvc_static PROPERTIES
     OUTPUT_NAME uvc
@@ -135,21 +136,33 @@ foreach(target_name IN LISTS UVC_TARGETS)
             log-lib
             log
     )
-    target_link_libraries(
-            ${target_name}
-            PRIVATE
-            ${log-lib}
-    )
+    if(NOT ${log-lib} STREQUAL "log-lib-NOTFOUND")
+      target_link_libraries(
+              ${target_name}
+              PRIVATE
+              ${log-lib}
+      )
+    endif()
   endif()
 endforeach()
 
 if(BUILD_EXAMPLE)
   add_executable(example src/example.c)
   find_package(Threads)
+  # find_package(OpenCVPkg REQUIRED
+  #   COMPONENTS
+  #     opencv_core
+  #     opencv_highgui
+  # )
+  find_package(SDL2)
+  include_directories(${SDL2_INCLUDE_DIR})
   target_link_libraries(example
     PRIVATE
       LibUVC::UVC
       Threads::Threads
+      # opencv_core
+      # opencv_highgui
+      ${SDL2_LIBRARIES}
   )
 endif()
 

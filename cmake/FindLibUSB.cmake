@@ -9,9 +9,29 @@ target LibUSB::LibUSB
 
 # TODO Append parts for Version compasion and REQUIRED support
 
-if (MSVC OR MINGW)
+if (MSVC)
     return()
 endif()
+
+# if (MINGW)
+#   if(LibUSB_FOUND)
+#     if (NOT TARGET LibUSB::LibUSB)
+#       add_library(LibUSB::LibUSB UNKNOWN IMPORTED)
+#       if(LibUSB_INCLUDE_DIR)
+# 	    set_target_properties(LibUSB::LibUSB PROPERTIES
+# 	      INTERFACE_INCLUDE_DIRECTORIES ${LibUSB_INCLUDE_DIR}
+# 	    )
+#       endif()
+#       if(LibUSB_LIBRARIES)
+#         set_target_properties(LibUSB::LibUSB PROPERTIES
+# 	      IMPORTED_LINK_INTERFACE_LANGUAGES "C" 
+# 	      IMPORTED_LOCATION ${LibUSB_LIBRARIES}
+#         )
+#       endif()
+#     endif()
+#   endif()
+#   return()
+# endif()
 
 if (NOT TARGET LibUSB::LibUSB)
   find_package(PkgConfig)

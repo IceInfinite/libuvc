@@ -1,91 +1,8 @@
-#include "libuvc/libuvc.h"
+#include <SDL.h>
 #include <stdio.h>
 #include <unistd.h>
 
-/* This callback function runs once per frame. Use it to perform any
- * quick processing you need, or have it put the frame into your application's
- * input queue. If this function takes too long, you'll start losing frames. */
-void cb(uvc_frame_t *frame, void *ptr) {
-  uvc_frame_t *bgr;
-  uvc_error_t ret;
-  enum uvc_frame_format *frame_format = (enum uvc_frame_format *)ptr;
-  /* FILE *fp;
-   * static int jpeg_count = 0;
-   * static const char *H264_FILE = "iOSDevLog.h264";
-   * static const char *MJPEG_FILE = ".jpeg";
-   * char filename[16]; */
-
-  /* We'll convert the image from YUV/JPEG to BGR, so allocate space */
-  bgr = uvc_allocate_frame(frame->width * frame->height * 3);
-  if (!bgr) {
-    printf("unable to allocate bgr frame!\n");
-    return;
-  }
-
-  printf("callback! frame_format = %d, width = %d, height = %d, length = %lu, ptr = %p\n",
-    frame->frame_format, frame->width, frame->height, frame->data_bytes, ptr);
-
-  switch (frame->frame_format) {
-  case UVC_FRAME_FORMAT_H264:
-    /* use `ffplay H264_FILE` to play */
-    /* fp = fopen(H264_FILE, "a");
-     * fwrite(frame->data, 1, frame->data_bytes, fp);
-     * fclose(fp); */
-    break;
-  case UVC_COLOR_FORMAT_MJPEG:
-    /* sprintf(filename, "%d%s", jpeg_count++, MJPEG_FILE);
-     * fp = fopen(filename, "w");
-     * fwrite(frame->data, 1, frame->data_bytes, fp);
-     * fclose(fp); */
-    break;
-  case UVC_COLOR_FORMAT_YUYV:
-    /* Do the BGR conversion */
-    ret = uvc_any2bgr(frame, bgr);
-    if (ret) {
-      uvc_perror(ret, "uvc_any2bgr");
-      uvc_free_frame(bgr);
-      return;
-    }
-    break;
-  default:
-    break;
-  }
-
-  if (frame->sequence % 30 == 0) {
-    printf(" * got image %u\n",  frame->sequence);
-  }
-
-  /* Call a user function:
-   *
-   * my_type *my_obj = (*my_type) ptr;
-   * my_user_function(ptr, bgr);
-   * my_other_function(ptr, bgr->data, bgr->width, bgr->height);
-   */
-
-  /* Call a C++ method:
-   *
-   * my_type *my_obj = (*my_type) ptr;
-   * my_obj->my_func(bgr);
-   */
-
-  /* Use opencv.highgui to display the image:
-   * 
-   * cvImg = cvCreateImageHeader(
-   *     cvSize(bgr->width, bgr->height),
-   *     IPL_DEPTH_8U,
-   *     3);
-   *
-   * cvSetData(cvImg, bgr->data, bgr->width * 3); 
-   *
-   * cvNamedWindow("Test", CV_WINDOW_AUTOSIZE);
-   * cvShowImage("Test", cvImg);
-   * cvWaitKey(10);
-   *
-   * cvReleaseImageHeader(&cvImg);
-   */
-
-  uvc_free_frame(bgr);
-}
+#include "libuvc/libuvc.h"
 
 int main(int argc, char **argv) {
   uvc_context_t *ctx;
@@ -93,6 +10,24 @@ int main(int argc, char **argv) {
   uvc_device_handle_t *devh;
   uvc_stream_ctrl_t ctrl;
   uvc_error_t res;
+  SDL_Window *window = NULL;
+  SDL_Renderer *sdlRenderer = NULL;
+  SDL_Texture *sdlTexture = NULL;
+  SDL_Rect sdlRect;
+  const int screen_w = 960;
+  const int screen_h = 540;
+  sdlRect.x = 0;
+  sdlRect.y = 0;
+  sdlRect.w = screen_w;
+  sdlRect.h = screen_h;
+
+  SDL_Init(SDL_INIT_VIDEO);
+  // Create sdl window
+  window = SDL_CreateWindow("Simplest Video Play SDL2", SDL_WINDOWPOS_UNDEFINED,
+                            SDL_WINDOWPOS_UNDEFINED, screen_w, screen_h,
+                            SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
+
+  sdlRenderer = SDL_CreateRenderer(window, -1, 0);
 
   /* Initialize a UVC service context. Libuvc will set up its own libusb
    * context. Replace NULL with a libusb_context pointer to run libuvc
@@ -108,8 +43,8 @@ int main(int argc, char **argv) {
 
   /* Locates the first attached UVC device, stores in dev */
   res = uvc_find_device(
-      ctx, &dev,
-      0, 0, NULL); /* filter devices: vendor_id, product_id, "serial_num" */
+      ctx, &dev, 0, 0,
+      NULL); /* filter devices: vendor_id, product_id, "serial_num" */
 
   if (res < 0) {
     uvc_perror(res, "uvc_find_device"); /* no devices found */
@@ -128,23 +63,26 @@ int main(int argc, char **argv) {
        * knows about the device */
       uvc_print_diag(devh, stderr);
 
-      const uvc_format_desc_t *format_desc = uvc_get_format_descs(devh);
-      const uvc_frame_desc_t *frame_desc = format_desc->frame_descs;
+      const uvc_format_desc_t *format_desc = uvc_get_format_descs(devh)->next;
+      const uvc_frame_desc_t *frame_desc = format_desc->frame_descs->next;
+
       enum uvc_frame_format frame_format;
       int width = 640;
       int height = 480;
       int fps = 30;
+      Uint32 pixformat = SDL_PIXELFORMAT_IYUV;
 
       switch (format_desc->bDescriptorSubtype) {
-      case UVC_VS_FORMAT_MJPEG:
-        frame_format = UVC_COLOR_FORMAT_MJPEG;
-        break;
-      case UVC_VS_FORMAT_FRAME_BASED:
-        frame_format = UVC_FRAME_FORMAT_H264;
-        break;
-      default:
-        frame_format = UVC_FRAME_FORMAT_YUYV;
-        break;
+        case UVC_VS_FORMAT_MJPEG:
+          frame_format = UVC_COLOR_FORMAT_MJPEG;
+          break;
+        case UVC_VS_FORMAT_FRAME_BASED:
+          frame_format = UVC_FRAME_FORMAT_H264;
+          break;
+        default:
+          frame_format = UVC_FRAME_FORMAT_NV12;
+          pixformat = SDL_PIXELFORMAT_NV12;
+          break;
       }
 
       if (frame_desc) {
@@ -153,60 +91,137 @@ int main(int argc, char **argv) {
         fps = 10000000 / frame_desc->dwDefaultFrameInterval;
       }
 
-      printf("\nFirst format: (%4s) %dx%d %dfps\n", format_desc->fourccFormat, width, height, fps);
+      sdlTexture = SDL_CreateTexture(
+          sdlRenderer, pixformat, SDL_TEXTUREACCESS_STREAMING, width, height);
+
+      printf("\nFirst format: (%4s) %dx%d %dfps\n", format_desc->fourccFormat,
+             width, height, fps);
 
       /* Try to negotiate first stream profile */
       res = uvc_get_stream_ctrl_format_size(
-          devh, &ctrl, /* result stored in ctrl */
-          frame_format,
-          width, height, fps /* width, height, fps */
+          devh, &ctrl,                     /* result stored in ctrl */
+          frame_format, width, height, fps /* width, height, fps */
       );
 
       /* Print out the result */
       uvc_print_stream_ctrl(&ctrl, stderr);
 
       if (res < 0) {
-        uvc_perror(res, "get_mode"); /* device doesn't provide a matching stream */
+        uvc_perror(res,
+                   "get_mode"); /* device doesn't provide a matching stream */
       } else {
-        /* Start the video stream. The library will call user function cb:
-         *   cb(frame, (void *) 12345)
-         */
-        res = uvc_start_streaming(devh, &ctrl, cb, (void *) 12345, 0);
+        uvc_stream_handle_t *strmh;
 
+        res = uvc_stream_open_ctrl(devh, &strmh, &ctrl);
         if (res < 0) {
-          uvc_perror(res, "start_streaming"); /* unable to start stream */
+          uvc_perror(res, "uvc_stream_open_ctrl");
         } else {
-          puts("Streaming...");
+          res = uvc_stream_start(strmh, NULL, NULL, 0);
 
-          /* enable auto exposure - see uvc_set_ae_mode documentation */
-          puts("Enabling auto exposure ...");
-          const uint8_t UVC_AUTO_EXPOSURE_MODE_AUTO = 2;
-          res = uvc_set_ae_mode(devh, UVC_AUTO_EXPOSURE_MODE_AUTO);
-          if (res == UVC_SUCCESS) {
-            puts(" ... enabled auto exposure");
-          } else if (res == UVC_ERROR_PIPE) {
-            /* this error indicates that the camera does not support the full AE mode;
-             * try again, using aperture priority mode (fixed aperture, variable exposure time) */
-            puts(" ... full AE not supported, trying aperture priority mode");
-            const uint8_t UVC_AUTO_EXPOSURE_MODE_APERTURE_PRIORITY = 8;
-            res = uvc_set_ae_mode(devh, UVC_AUTO_EXPOSURE_MODE_APERTURE_PRIORITY);
-            if (res < 0) {
-              uvc_perror(res, " ... uvc_set_ae_mode failed to enable aperture priority mode");
-            } else {
-              puts(" ... enabled aperture priority auto exposure mode");
-            }
+          if (res < 0) {
+            uvc_stream_close(strmh);
+            uvc_perror(res, "start_streaming"); /* unable to start stream */
           } else {
-            uvc_perror(res, " ... uvc_set_ae_mode failed to enable auto exposure mode");
+            puts("Streaming...");
+
+            /* enable auto exposure - see uvc_set_ae_mode documentation */
+            puts("Enabling auto exposure ...");
+            // uvc_set_focus_auto(devh, 0);
+            // uvc_set_focus_abs(devh, 1);
+            const uint8_t UVC_AUTO_EXPOSURE_MODE_AUTO = 2;
+            res = uvc_set_ae_mode(devh, UVC_AUTO_EXPOSURE_MODE_AUTO);
+            if (res == UVC_SUCCESS) {
+              puts(" ... enabled auto exposure");
+            } else if (res == UVC_ERROR_PIPE) {
+              /* this error indicates that the camera does not support the full
+               * AE mode; try again, using aperture priority mode (fixed
+               * aperture, variable exposure time) */
+              puts(" ... full AE not supported, trying aperture priority mode");
+              const uint8_t UVC_AUTO_EXPOSURE_MODE_APERTURE_PRIORITY = 8;
+              res = uvc_set_ae_mode(devh,
+                                    UVC_AUTO_EXPOSURE_MODE_APERTURE_PRIORITY);
+              if (res < 0) {
+                uvc_perror(res,
+                           " ... uvc_set_ae_mode failed to enable aperture "
+                           "priority mode");
+              } else {
+                puts(" ... enabled aperture priority auto exposure mode");
+              }
+            } else {
+              uvc_perror(
+                  res,
+                  " ... uvc_set_ae_mode failed to enable auto exposure mode");
+            }
+
+            SDL_Event event;
+            SDL_bool done = SDL_FALSE;
+            Uint32 windowID = SDL_GetWindowID(window);
+            while (1) {
+              if (SDL_PollEvent(&event)) {
+                switch (event.type) {
+                  case SDL_KEYDOWN:
+                    if (event.key.keysym.sym == SDLK_ESCAPE) {
+                      done = SDL_TRUE;
+                    }
+                    break;
+                  case SDL_QUIT:
+                    done = SDL_TRUE;
+                  case SDL_WINDOWEVENT:
+                    if (event.window.windowID == windowID &&
+                        event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                      sdlRect.w = event.window.data1;
+                      sdlRect.h = event.window.data2;
+                      printf("Resize window. Width=%d, height=%d\n", sdlRect.w,
+                             sdlRect.h);
+                    }
+                    break;
+                }
+              }
+
+              if (done) break;
+
+              uvc_frame_t *frame;
+              res = uvc_stream_get_frame(strmh, &frame, 0);
+
+              if (res < 0) {
+                printf("unable to get a stream frame!\n");
+                continue;
+              }
+
+              // printf(
+              //     "uvc get frame! frame_format = %d, width = %d, height = %d,
+              //     " "length = %lu, sequence=%d\n", frame->frame_format,
+              //     frame->width, frame->height, frame->data_bytes,
+              //     frame->sequence);
+              switch (frame->frame_format) {
+                case UVC_FRAME_FORMAT_H264:
+                  break;
+                case UVC_COLOR_FORMAT_MJPEG:
+                  break;
+                case UVC_COLOR_FORMAT_YUYV:
+                  break;
+                case UVC_COLOR_FORMAT_NV12:
+                  SDL_UpdateNVTexture(
+                      sdlTexture, NULL, frame->data, frame->width,
+                      frame->data + (frame->height * frame->width),
+                      frame->width);
+                  SDL_RenderClear(sdlRenderer);
+                  SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, &sdlRect);
+                  SDL_RenderPresent(sdlRenderer);
+                  break;
+                default:
+                  break;
+              }
+            }
+
+            /* End the stream. Blocks until last callback is serviced */
+            uvc_stop_streaming(devh);
+            puts("Done streaming.");
           }
-
-          sleep(10); /* stream for 10 seconds */
-
-          /* End the stream. Blocks until last callback is serviced */
-          uvc_stop_streaming(devh);
-          puts("Done streaming.");
         }
       }
 
+      SDL_DestroyTexture(sdlTexture);
       /* Release our handle on the device */
       uvc_close(devh);
       puts("Device closed");
@@ -216,11 +231,13 @@ int main(int argc, char **argv) {
     uvc_unref_device(dev);
   }
 
-  /* Close the UVC context. This closes and cleans up any existing device handles,
-   * and it closes the libusb context if one was not provided. */
+  /* Close the UVC context. This closes and cleans up any existing device
+   * handles, and it closes the libusb context if one was not provided. */
   uvc_exit(ctx);
   puts("UVC exited");
+  SDL_DestroyRenderer(sdlRenderer);
+  SDL_DestroyWindow(window);
+  SDL_Quit();
 
   return 0;
 }
-
